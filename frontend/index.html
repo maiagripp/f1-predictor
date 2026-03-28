@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>F1 Winner Predictor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300..700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-label="F1">
+        <path d="M3 6h18v2H3V6zm0 5h12v2H3v-2zm0 5h8v2H3v-2z"/>
+      </svg>
+      F1 Predict
+    </div>
+    <button class="theme-btn" data-theme-toggle aria-label="Alternar tema">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+      </svg>
+    </button>
+  </header>
+
+  <h1>Quem vai vencer a corrida?</h1>
+  <p class="subtitle">Insira os dados de largada do piloto para prever as chances de vitória.</p>
+
+  <div class="card">
+    <div class="card-title">Dados de Largada</div>
+    <form id="form">
+      <div class="grid">
+        <div class="field">
+          <label for="qual">Posição no Qualifying</label>
+          <input type="number" id="qual" min="1" max="20" value="1" required>
+        </div>
+        <div class="field">
+          <label for="start">Posição de Largada</label>
+          <input type="number" id="start" min="1" max="20" value="1" required>
+        </div>
+        <div class="field">
+          <label for="pits">Nº de Pit Stops</label>
+          <input type="number" id="pits" min="1" max="4" value="2" required>
+        </div>
+        <div class="field">
+          <label for="weather">Clima</label>
+          <select id="weather">
+            <option>Sunny</option>
+            <option>Rainy</option>
+            <option>Windy</option>
+            <option>Cloudy</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="tire">Estratégia de Pneus</label>
+          <select id="tire">
+            <option>Soft-Hard</option>
+            <option>Medium-Hard</option>
+            <option>Soft-Medium</option>
+            <option>One-stop</option>
+            <option>Two-stop</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="team">Equipe</label>
+          <select id="team">
+            <option>Red Bull Racing</option>
+            <option>Mercedes</option>
+            <option>Ferrari</option>
+            <option>McLaren</option>
+            <option>Aston Martin</option>
+            <option>Alpine</option>
+            <option>AlphaTauri</option>
+            <option>Alfa Romeo</option>
+            <option>Williams</option>
+            <option>Haas</option>
+          </select>
+        </div>
+      </div>
+      <button type="submit" class="btn" id="submitBtn">Prever Resultado</button>
+      <p class="error" id="errMsg"></p>
+    </form>
+  </div>
+
+  <div class="result" id="result">
+    <div class="result-label" id="resultLabel"></div>
+    <div class="prob-section">
+      <div class="prob-row"><span>Sem vitória</span><span id="pNao">–</span></div>
+      <div class="bar-track"><div class="bar-fill lose" id="barNao" style="width:0%"></div></div>
+      <div class="prob-row"><span>Vencedor</span><span id="pVence">–</span></div>
+      <div class="bar-track"><div class="bar-fill win" id="barVence" style="width:0%"></div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Tema toggle
+  (function () {
+    const btn  = document.querySelector('[data-theme-toggle]');
+    const html = document.documentElement;
+    let theme  = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    html.setAttribute('data-theme', theme);
+    btn && btn.addEventListener('click', () => {
+      theme = theme === 'dark' ? 'light' : 'dark';
+      html.setAttribute('data-theme', theme);
+    });
+  })();
+
+  // Predição
+  document.getElementById('form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn    = document.getElementById('submitBtn');
+    const err    = document.getElementById('errMsg');
+    const result = document.getElementById('result');
+
+    btn.disabled     = true;
+    btn.textContent  = 'Calculando...';
+    err.style.display = 'none';
+    result.classList.remove('show');
+
+    const payload = {
+      QualifyingPosition: parseFloat(document.getElementById('qual').value),
+      StartPosition:      parseFloat(document.getElementById('start').value),
+      PitStopCount:       parseFloat(document.getElementById('pits').value),
+      Weather:            document.getElementById('weather').value,
+      TireStrategy:       document.getElementById('tire').value,
+      Team:               document.getElementById('team').value
+    };
+
+    try {
+      const res  = await fetch('http://localhost:5000/predict', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+
+      document.getElementById('resultLabel').textContent = data.label;
+      result.className = 'result show ' + (data.prediction === 1 ? 'win' : 'lose');
+
+      const pNao   = (data.probability.nao_venceu * 100).toFixed(1);
+      const pVence = (data.probability.venceu * 100).toFixed(1);
+
+      document.getElementById('pNao').textContent   = pNao + '%';
+      document.getElementById('pVence').textContent = pVence + '%';
+
+      setTimeout(() => {
+        document.getElementById('barNao').style.width   = pNao + '%';
+        document.getElementById('barVence').style.width = pVence + '%';
+      }, 50);
+
+    } catch {
+      err.textContent   = 'Erro ao conectar. Certifique-se que o back-end está rodando na porta 5000.';
+      err.style.display = 'block';
+    } finally {
+      btn.disabled    = false;
+      btn.textContent = 'Prever Resultado';
+    }
+  });
+</script>
+</body>
+</html>
